@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mobile Video Controls
 // @namespace    http://tampermonkey.net/
-// @version      2.1
+// @version      2.2
 // @description  Clean, mobile-first fullscreen player: double-tap seek, swipe seek, hold for 2x, speed picker, Android back button closes.
 // @author       You
 // @match        *://*/*
@@ -761,6 +761,13 @@
         return screen.orientation.lock(mode);
     }
 
+    // Landscape goes fullscreen; portrait stays windowed so the browser's
+    // address bar / tab switcher remain reachable.
+    function wantsLandscape() {
+        if (orientationMode) return orientationMode === 'landscape';
+        return current.videoWidth > current.videoHeight;
+    }
+
     function rotate() {
         const isLandscape = screen.orientation
             ? screen.orientation.type.startsWith('landscape')
@@ -768,7 +775,9 @@
         orientationMode = isLandscape ? 'portrait' : 'landscape';
         showToast(orientationMode === 'landscape' ? 'Landscape' : 'Portrait', '', 900);
 
-        if (document.fullscreenElement) {
+        if (orientationMode === 'portrait') {
+            if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
+        } else if (document.fullscreenElement) {
             applyOrientation().catch(() => showToast('Rotation not supported', '', 1200));
         } else {
             enterFullscreen(); // fullscreenchange applies the lock
@@ -819,7 +828,7 @@
             pushedHistory = true;
         } catch (e) { pushedHistory = false; }
 
-        enterFullscreen();
+        if (wantsLandscape()) enterFullscreen();
         cancelAnimationFrame(rafId);
         loop();
         showUI();

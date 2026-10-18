@@ -20,7 +20,7 @@ Tap the floating button (bottom right) on any page with a video.
 | Double-tap center | Play / pause |
 | Swipe left / right | Seek |
 | Hold | Play at 2x while held |
-| Rotate button (top bar) | Switch between landscape and portrait |
+| Rotate button (top bar) | Landscape (fullscreen) or portrait (keeps browser bar visible) |
 | Back button | Close the player |
 
 Keyboard: Space/K play-pause, ←/→ or J/L seek, F fullscreen, Esc close.
