@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mobile Video Controls
 // @namespace    http://tampermonkey.net/
-// @version      2.0
+// @version      2.1
 // @description  Clean, mobile-first fullscreen player: double-tap seek, swipe seek, hold for 2x, speed picker, Android back button closes.
 // @author       You
 // @match        *://*/*
@@ -63,6 +63,7 @@
         fsEnter: svg('M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z'),
         fsExit: svg('M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z'),
         open: svg('M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10z'),
+        rotate: svg('M16.48 2.52c3.27 1.55 5.61 4.72 5.97 8.48h1.5C23.44 4.84 18.29 0 12 0l-.66.03 3.81 3.81 1.33-1.32zm-6.25-.77a1.5 1.5 0 0 0-2.12 0L1.75 8.11a1.5 1.5 0 0 0 0 2.12l12.02 12.02a1.5 1.5 0 0 0 2.12 0l6.36-6.36a1.5 1.5 0 0 0 0-2.12L10.23 1.75zm4.6 19.44L2.81 9.17l6.36-6.36 12.02 12.02-6.36 6.36zm-7.31.29C4.25 19.94 1.91 16.76 1.55 13H.05C.56 19.16 5.71 24 12 24l.66-.03-3.81-3.81-1.33 1.32z'),
         tri: svg('M8 5v14l11-7z'),
     };
 
@@ -313,6 +314,7 @@
                     <div class="top">
                         <button class="btn hit" data-act="close" aria-label="Close">${ICON.close}</button>
                         <div class="spacer"></div>
+                        <button class="btn hit" data-act="rotate" aria-label="Rotate screen">${ICON.rotate}</button>
                         <button class="pill hit speed-label" data-act="speed" aria-label="Playback speed">1x</button>
                     </div>
                     <div class="center">
@@ -400,6 +402,7 @@
     let scrubTime = 0;
     let boosting = false;
     let boostPrevRate = 1;
+    let orientationMode = null; // null = auto, or 'landscape' / 'portrait' chosen via rotate button
 
     /* =============================
        PLAYBACK
@@ -731,6 +734,7 @@
             case 'fwd': seekBy(SEEK_STEP); break;
             case 'speed': openSheet(); return;
             case 'fs': toggleFullscreen(); break;
+            case 'rotate': rotate(); break;
         }
         showUI();
     });
@@ -748,13 +752,33 @@
         else enterFullscreen();
     }
 
+    // Orientation can only be locked while fullscreen (Android Chrome/Firefox).
+    // Uses the user's choice from the rotate button, else landscape for wide videos.
+    function applyOrientation() {
+        const mode = orientationMode || (current.videoWidth > current.videoHeight ? 'landscape' : null);
+        if (!mode) return Promise.resolve();
+        if (!screen.orientation || !screen.orientation.lock) return Promise.reject(new Error('unsupported'));
+        return screen.orientation.lock(mode);
+    }
+
+    function rotate() {
+        const isLandscape = screen.orientation
+            ? screen.orientation.type.startsWith('landscape')
+            : innerWidth > innerHeight;
+        orientationMode = isLandscape ? 'portrait' : 'landscape';
+        showToast(orientationMode === 'landscape' ? 'Landscape' : 'Portrait', '', 900);
+
+        if (document.fullscreenElement) {
+            applyOrientation().catch(() => showToast('Rotation not supported', '', 1200));
+        } else {
+            enterFullscreen(); // fullscreenchange applies the lock
+        }
+    }
+
     document.addEventListener('fullscreenchange', () => {
         if (!current) return;
         if (document.fullscreenElement) {
-            // Rotate to landscape for wide videos (Android Chrome/Firefox support this in fullscreen).
-            if (current.videoWidth > current.videoHeight && screen.orientation && screen.orientation.lock) {
-                screen.orientation.lock('landscape').catch(() => { });
-            }
+            applyOrientation().catch(() => { });
         } else {
             try { screen.orientation.unlock(); } catch (e) { /* not supported */ }
         }
